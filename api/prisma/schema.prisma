@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  OWNER
+  VET
+}
+
+enum DogStatus {
+  ALIVE
+  DECEASED
+}
+
+enum RecordType {
+  VACCINE
+  CONSULTATION
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  role          Role     @default(OWNER)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  owner         Owner?
+  veterinarian  Veterinarian?
+  auditLogs     AuditLog[]
+}
+
+model Owner {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  firstName String
+  lastName  String
+  phone     String?
+  address   String?
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dogs      DogOwner[]
+  vetAuths  DogVetAuthorization[]
+}
+
+model Clinic {
+  id           String   @id @default(uuid())
+  name         String
+  address      String?
+  contactEmail String?
+
+  veterinarians Veterinarian[]
+}
+
+model Veterinarian {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  clinicId      String
+  licenseNumber String?
+  firstName     String
+  lastName      String
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic        Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  healthRecords HealthRecord[]
+  dogAuths      DogVetAuthorization[]
+}
+
+model Dog {
+  id            String   @id @default(uuid())
+  name          String
+  breed         String?
+  sex           String?
+  birthDate     DateTime?
+  origin        String?
+  baptismDate   DateTime?
+  s3PhotoUrl    String?
+  status        DogStatus @default(ALIVE)
+  createdAt     DateTime  @default(now())
+
+  owners        DogOwner[]
+  healthRecords HealthRecord[]
+  vetAuths      DogVetAuthorization[]
+}
+
+model DogOwner {
+  dogId            String
+  ownerId          String
+  assignedAt       DateTime @default(now())
+  permissionsLevel String   @default("FULL") // Could be an enum
+
+  dog   Dog   @relation(fields: [dogId], references: [id], onDelete: Cascade)
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@id([dogId, ownerId])
+}
+
+model DogVetAuthorization {
+  dogId           String
+  vetId           String
+  grantedByOwnerId String
+  grantedAt       DateTime @default(now())
+
+  dog            Dog          @relation(fields: [dogId], references: [id], onDelete: Cascade)
+  vet            Veterinarian @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  grantedByOwner Owner        @relation(fields: [grantedByOwnerId], references: [id], onDelete: Cascade)
+
+  @@id([dogId, vetId])
+}
+
+model HealthRecord {
+  id            String     @id @default(uuid())
+  dogId         String
+  vetId         String
+  type          RecordType
+  scheduledDate DateTime?
+  appliedDate   DateTime?
+  vaccineBatch  String?
+  observations  String?
+
+  dog Dog          @relation(fields: [dogId], references: [id], onDelete: Cascade)
+  vet Veterinarian @relation(fields: [vetId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String
+  action      String
+  entityName  String
+  entityId    String
+  oldValue    String?
+  newValue    String?
+  timestamp   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
